@@ -135,8 +135,8 @@ jobs:
           mkdir -p fab
 
           # Generate the Gerber files
-          kicad-cli pcb export gerbers --no-protel-ext -o fab/ ${{ env.pcb_file }}
-          kicad-cli pcb export drill --format gerber --excellon-separate-th -o fab/ ${{ env.pcb_file }}
+          kicad-cli pcb export gerbers --no-protel-ext -o fab/ pcb_power.kicad_pcb
+          kicad-cli pcb export drill --format gerber --excellon-separate-th -o fab/ pcb_power.kicad_pcb
       
           # Check if the Gerber files were generated successfully
           if [ ! -d "fab/${{ env.base_name }}" ]; then
