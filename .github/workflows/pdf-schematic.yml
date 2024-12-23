@@ -15,17 +15,15 @@ permissions:
   contents: write  # Ensure write access for the repository contents
 
 jobs:
-  # Job to validate files
-  validate:
+  deploy:
     runs-on: ubuntu-latest
-    outputs:
-      project_file: ${{ steps.find_files.outputs.project_file }}
-      schematic_file: ${{ steps.find_files.outputs.schematic_file }}
-      pcb_file: ${{ steps.find_files.outputs.pcb_file }}
+
     steps:
+      # Step 1: Checkout the repository
       - name: Checkout repository
         uses: actions/checkout@v2
 
+      # Step 2: Find project, schematic, and PCB files
       - name: Find project, schematic, and PCB files
         id: find_files
         run: |
@@ -57,69 +55,27 @@ jobs:
           echo "Found project file: $project_file"
           echo "Found schematic file: $schematic_file"
           echo "Found PCB file: $pcb_file"
-      
-          # Set environment variables to pass to other jobs
-          echo "project_file=$project_file" >> $GITHUB_ENV
+
+          # Store the base name for later use
+          echo "base_name=$base_name" >> $GITHUB_ENV
           echo "schematic_file=$schematic_file" >> $GITHUB_ENV
           echo "pcb_file=$pcb_file" >> $GITHUB_ENV
-
-  deploy:
-    runs-on: ubuntu-latest
-    needs: validate
-
-    steps:
-      # Step 1: Checkout the repository
-      - name: Checkout repository
-        uses: actions/checkout@v2
-
-      # Step 2: Find schematic and project files
-      - name: Find schematic and project files
-        id: find_files
-        run: |
-          # Find the .pro project file
-          project_file=$(find . -type f -name "*.kicad_pro" | head -n 1)
-      
-          if [ -z "$project_file" ]; then
-            echo "No project file found!"
-            exit 1
-          fi
-      
-          # Extract the project name from the .pro file (remove the extension)
-          base_name=$(basename "$project_file" .kicad_pro)
-      
-          echo "Found project file: $project_file"
-          echo "Extracted project name: $base_name"
-      
-          # Find the corresponding schematic file based on the project name
-          root_schematic_file="./${base_name}.kicad_sch"
-          
-          if [ ! -f "$root_schematic_file" ]; then
-            echo "Schematic file $root_schematic_file does not exist!"
-            exit 1
-          fi
-      
-          echo "Found root schematic file: $root_schematic_file"
-      
-          # Store the root schematic file path for later use
-          echo "root_schematic_file=$root_schematic_file" >> $GITHUB_ENV
-          echo "base_name=$base_name" >> $GITHUB_ENV
 
       # Step 3: Install KiCad V8.0.0 (or adjust version if necessary)
       - name: Install KiCad V8.0.0 (or adjust version if necessary)
         run: |
-          # Add KiCad repository for the correct version
           sudo add-apt-repository ppa:kicad/kicad-8.0-releases -y
           sudo apt update
           sudo apt install -y kicad
 
-      # Step 4: Generate the PDF from the schematic
+      # Step 4: Generate the schematic PDF
       - name: Generate schematic PDF
         run: |
           # Ensure the 'doc' directory exists
           mkdir -p doc
           
           # Generate the schematic PDF with the project name dynamically inserted
-          kicad-cli sch export pdf --output "doc/${{ env.base_name }}-schematic.pdf" ${{ env.root_schematic_file }}
+          kicad-cli sch export pdf --output "doc/${{ env.base_name }}-schematic.pdf" ${{ env.schematic_file }}
       
           # Check if the PDF was generated successfully
           if [ ! -f "doc/${{ env.base_name }}-schematic.pdf" ]; then
@@ -135,11 +91,11 @@ jobs:
           mkdir -p fab
 
           # Generate the Gerber files
-          kicad-cli pcb export gerbers --no-protel-ext -o fab/ pcb_power.kicad_pcb
-          kicad-cli pcb export drill --format gerber --excellon-separate-th -o fab/ pcb_power.kicad_pcb
-      
-          # Check if the Gerber files were generated successfully
-          if [ ! -d "fab/${{ env.base_name }}" ]; then
+          kicad-cli pcb export gerbers --no-protel-ext -o fab/ "${{ env.pcb_file }}"
+          kicad-cli pcb export drill --format gerber --excellon-separate-th -o fab/ "${{ env.pcb_file }}"
+
+          # Check if any Gerber files were generated in the 'fab' directory
+          if [ -z "$(ls fab/*.gbr 2>/dev/null)" ]; then
             echo "Error: Gerber files were not generated."
             exit 1
           fi
@@ -164,7 +120,7 @@ jobs:
             exit 0
           fi
           
-          # Commit if the file was added
+          # Commit if the files were added
           git commit -m "Add generated schematic PDF and Gerber files"
           
           # Push the commit
