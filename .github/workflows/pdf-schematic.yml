@@ -65,6 +65,7 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
+    needs: validate
 
     steps:
       # Step 1: Checkout the repository
@@ -127,15 +128,35 @@ jobs:
           fi
           echo "Schematic PDF generated successfully."
 
+      # Step 5: Generate Gerber files
+      - name: Generate Gerber files
+        run: |
+          # Ensure the 'fab' directory exists
+          mkdir -p fab
+
+          # Generate the Gerber files
+          kicad-cli pcb export gerbers --no-protel-ext -o fab/ ${{ env.pcb_file }}
+          kicad-cli pcb export drill --format gerber --excellon-separate-th -o fab/ ${{ env.pcb_file }}
+      
+          # Check if the Gerber files were generated successfully
+          if [ ! -d "fab/${{ env.base_name }}" ]; then
+            echo "Error: Gerber files were not generated."
+            exit 1
+          fi
+          echo "Gerber files generated successfully."
+
+      # Step 6: Configure Git user
       - name: Configure Git user
         run: |
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
       
-      - name: Commit and push the generated PDF
+      # Step 7: Commit and push the generated files
+      - name: Commit and push the generated PDF and Gerber files
         run: |
-          # Add the newly generated PDF to Git
+          # Add the newly generated PDF and Gerber files to Git
           git add "doc/${{ env.base_name }}-schematic.pdf"
+          git add "fab/*"
           
           # Check if there are changes to commit
           if git diff --cached --quiet; then
@@ -144,7 +165,7 @@ jobs:
           fi
           
           # Commit if the file was added
-          git commit -m "Add generated schematic PDF"
+          git commit -m "Add generated schematic PDF and Gerber files"
           
           # Push the commit
           git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref }}
