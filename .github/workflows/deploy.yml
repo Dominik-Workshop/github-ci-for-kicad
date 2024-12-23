@@ -92,7 +92,7 @@ jobs:
 
           # Generate the Gerber files
           kicad-cli pcb export gerbers --no-protel-ext -o fab/ "${{ env.pcb_file }}"
-          kicad-cli pcb export drill --format gerber --excellon-separate-th -o fab/ "${{ env.pcb_file }}"
+          kicad-cli pcb export drill -o fab/ "${{ env.pcb_file }}"
 
           # Check if any Gerber files were generated in the 'fab' directory
           if [ -z "$(ls fab/*.gbr 2>/dev/null)" ]; then
