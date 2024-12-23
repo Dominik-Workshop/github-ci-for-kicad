@@ -1,4 +1,4 @@
-name: Generate PDF schematic
+name: KiCad CI
 
 on:
   workflow_dispatch:
@@ -10,15 +10,16 @@ permissions:
   contents: write  # Ensure write access for the repository contents
 
 jobs:
-  generate-pdf:
+  # Job to install KiCad once and set up the environment
+  setup:
     runs-on: ubuntu-latest
-
+    outputs:
+      base_name: ${{ steps.find_files.outputs.base_name }}
+      root_schematic_file: ${{ steps.find_files.outputs.root_schematic_file }}
     steps:
-      # Step 1: Checkout the repository
       - name: Checkout repository
         uses: actions/checkout@v2
 
-      # Step 2: Find schematic and project files
       - name: Find schematic and project files
         id: find_files
         run: |
@@ -46,19 +47,22 @@ jobs:
       
           echo "Found root schematic file: $root_schematic_file"
       
-          # Store the root schematic file path for later use
-          echo "root_schematic_file=$root_schematic_file" >> $GITHUB_ENV
+          # Set environment variables to pass to other jobs
           echo "base_name=$base_name" >> $GITHUB_ENV
+          echo "root_schematic_file=$root_schematic_file" >> $GITHUB_ENV
 
-      # Step 3: Install KiCad V8.0.0 (or adjust version if necessary)
-      - name: Install KiCad V8.0.0 (or adjust version if necessary)
+      - name: Install KiCad V8.0.0
         run: |
           # Add KiCad repository for the correct version
           sudo add-apt-repository ppa:kicad/kicad-8.0-releases -y
           sudo apt update
           sudo apt install -y kicad
 
-      # Step 4: Generate the PDF from the schematic
+  # Job to generate schematic PDF (depends on the setup job)
+  generate-pdf:
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
       - name: Generate schematic PDF
         run: |
           # Ensure the 'doc' directory exists
@@ -81,17 +85,32 @@ jobs:
       
       - name: Commit and push the generated PDF
         run: |
-          # Add the newly generated PDF to Git
           git add "doc/${{ env.base_name }}-schematic.pdf"
-          
-          # Check if there are changes to commit
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-            exit 0
-          fi
-          
-          # Commit if the file was added
           git commit -m "Add generated schematic PDF"
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref }}
+
+  # Job to generate Gerbers (depends on the setup job)
+  generate-gerbers:
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - name: Generate Gerbers
+        run: |
+          # Ensure the 'gerbers' directory exists
+          mkdir -p gerbers
           
-          # Push the commit
+          # Use KiCad CLI to generate Gerbers
+          kicad-cli pcb export gerber --output gerbers/$base_name
+
+          # Check if the Gerber files were generated
+          if [ ! -d "gerbers/$base_name" ]; then
+            echo "Error: Gerber files were not generated."
+            exit 1
+          fi
+          echo "Gerber files generated successfully."
+
+      - name: Commit and push Gerber files
+        run: |
+          git add "gerbers/$base_name/*"
+          git commit -m "Add generated Gerber files"
           git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref }}
