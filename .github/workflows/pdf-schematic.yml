@@ -1,16 +1,69 @@
-name: Generate PDF schematic
+name: KiCad CI
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:  # Manually trigger the workflow
   push:
     branches:
-      - master
+      - master  # Trigger on push to master branch
+      - main    # Trigger on push to main branch
+  pull_request:
+    branches:
+      - master  # Trigger on pull requests targeting master branch
+      - main    # Trigger on pull requests targeting main branch
 
 permissions:
   contents: write  # Ensure write access for the repository contents
 
 jobs:
-  generate-pdf:
+  # Job to validate files
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      project_file: ${{ steps.find_files.outputs.project_file }}
+      schematic_file: ${{ steps.find_files.outputs.schematic_file }}
+      pcb_file: ${{ steps.find_files.outputs.pcb_file }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Find project, schematic, and PCB files
+        id: find_files
+        run: |
+          # Find the .pro project file
+          project_file=$(find . -type f -name "*.kicad_pro" | head -n 1)
+      
+          if [ -z "$project_file" ]; then
+            echo "No project file found!"
+            exit 1
+          fi
+      
+          # Extract the project name from the .pro file (remove the extension)
+          base_name=$(basename "$project_file" .kicad_pro)
+      
+          # Find the corresponding schematic and PCB files based on the project name
+          schematic_file="./${base_name}.kicad_sch"
+          pcb_file="./${base_name}.kicad_pcb"
+          
+          if [ ! -f "$schematic_file" ]; then
+            echo "Schematic file $schematic_file does not exist!"
+            exit 1
+          fi
+      
+          if [ ! -f "$pcb_file" ]; then
+            echo "PCB file $pcb_file does not exist!"
+            exit 1
+          fi
+      
+          echo "Found project file: $project_file"
+          echo "Found schematic file: $schematic_file"
+          echo "Found PCB file: $pcb_file"
+      
+          # Set environment variables to pass to other jobs
+          echo "project_file=$project_file" >> $GITHUB_ENV
+          echo "schematic_file=$schematic_file" >> $GITHUB_ENV
+          echo "pcb_file=$pcb_file" >> $GITHUB_ENV
+
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
