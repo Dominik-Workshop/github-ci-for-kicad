@@ -101,16 +101,23 @@ jobs:
           fi
           echo "Gerber files generated successfully."
 
-      # Step 6: Configure Git user
+      # Step 6: Zip Gerber files if they exist
+      - name: Zip Gerber files
+        run: |
+          # Create a zip file with the project name
+          zip -r "fab/${{ env.base_name }}-gerbers.zip" fab/*.gbr fab/*.drl
+          echo "Gerber files have been zipped into ${{ env.base_name }}gerbers.zip"
+
+      # Step 7: Configure Git user
       - name: Configure Git user
         run: |
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
       
-      # Step 7: Commit and push the generated files
+      # Step 8: Commit and push the generated PDF and Gerber files
       - name: Commit and push the generated PDF and Gerber files
         run: |
-          # Add the newly generated PDF and Gerber files to Git
+          # Add the newly generated PDF and Gerber files (including the zip) to Git
           git add "doc/${{ env.base_name }}-schematic.pdf"
           git add "fab/*"
           
