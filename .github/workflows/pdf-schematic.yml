@@ -58,6 +58,16 @@ jobs:
           sudo apt update
           sudo apt install -y kicad
 
+      - name: Verify KiCad installation and check kicad-cli availability
+        run: |
+          # Verify KiCad installation and check kicad-cli availability
+          kicad-cli --version
+          if ! command -v kicad-cli &> /dev/null; then
+            echo "kicad-cli could not be found, installation failed!"
+            exit 1
+          fi
+          echo "KiCad installed and kicad-cli is available."
+
   # Job to generate schematic PDF (depends on the setup job)
   generate-pdf:
     runs-on: ubuntu-latest
