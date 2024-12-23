@@ -19,7 +19,6 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     outputs:
-      base_name: ${{ steps.find_files.outputs.base_name }}
       project_file: ${{ steps.find_files.outputs.project_file }}
       schematic_file: ${{ steps.find_files.outputs.schematic_file }}
       pcb_file: ${{ steps.find_files.outputs.pcb_file }}
@@ -60,7 +59,6 @@ jobs:
           echo "Found PCB file: $pcb_file"
       
           # Set environment variables to pass to other jobs
-          echo "base_name=$base_name" >> $GITHUB_ENV
           echo "project_file=$project_file" >> $GITHUB_ENV
           echo "schematic_file=$schematic_file" >> $GITHUB_ENV
           echo "pcb_file=$pcb_file" >> $GITHUB_ENV
@@ -70,6 +68,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: validate
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
       - name: Install KiCad V8.0.0 (Ensure kicad-cli availability)
         run: |
           sudo add-apt-repository ppa:kicad/kicad-8.0-releases -y
@@ -82,6 +83,24 @@ jobs:
             exit 1
           fi
           echo "kicad-cli is available."
+
+      - name: Read project name from .kicad_pro
+        id: read_project_name
+        run: |
+          # Get the project name from the .kicad_pro file directly
+          project_file=$(find . -type f -name "*.kicad_pro" | head -n 1)
+
+          if [ -z "$project_file" ]; then
+            echo "Error: .kicad_pro file not found."
+            exit 1
+          fi
+
+          # Extract the base name from the .kicad_pro file
+          base_name=$(basename "$project_file" .kicad_pro)
+          echo "Project name extracted from .kicad_pro file: $base_name"
+
+          # Set the project name as an environment variable
+          echo "base_name=$base_name" >> $GITHUB_ENV
 
       - name: Generate schematic PDF
         run: |
