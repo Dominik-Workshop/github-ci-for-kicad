@@ -10,7 +10,7 @@ permissions:
   contents: write  # Ensure write access for the repository contents
 
 jobs:
-  # Job to install KiCad once and set up the environment
+  # Job to install KiCad and ensure kicad-cli is available
   setup:
     runs-on: ubuntu-latest
     outputs:
@@ -51,22 +51,19 @@ jobs:
           echo "base_name=$base_name" >> $GITHUB_ENV
           echo "root_schematic_file=$root_schematic_file" >> $GITHUB_ENV
 
-      - name: Install KiCad V8.0.0
+      - name: Install KiCad V8.0.0 (Ensure kicad-cli availability)
         run: |
           # Add KiCad repository for the correct version
           sudo add-apt-repository ppa:kicad/kicad-8.0-releases -y
           sudo apt update
           sudo apt install -y kicad
 
-      - name: Verify KiCad installation and check kicad-cli availability
-        run: |
-          # Verify KiCad installation and check kicad-cli availability
-          kicad-cli --version
+          # Ensure kicad-cli is available in the PATH
           if ! command -v kicad-cli &> /dev/null; then
-            echo "kicad-cli could not be found, installation failed!"
+            echo "Error: kicad-cli command not found!"
             exit 1
           fi
-          echo "KiCad installed and kicad-cli is available."
+          echo "kicad-cli is available."
 
   # Job to generate schematic PDF (depends on the setup job)
   generate-pdf:
