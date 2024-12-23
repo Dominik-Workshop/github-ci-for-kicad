@@ -64,7 +64,7 @@ jobs:
           echo "pcb_file=$pcb_file" >> $GITHUB_ENV
 
   # Job to generate schematic PDF and Gerbers (depends on validate job)
-  deploy:
+    deploy:
     runs-on: ubuntu-latest
     needs: validate
     steps:
@@ -108,7 +108,7 @@ jobs:
           mkdir -p doc
           
           # Generate the schematic PDF with the project name dynamically inserted
-          kicad-cli sch export pdf --output "doc/${{ env.base_name }}-schematic.pdf" ${{ env.root_schematic_file }}
+          kicad-cli sch export pdf --output "doc/${{ env.base_name }}-schematic.pdf" ${{ env.schematic_file }}
         
           # Check if the PDF was generated successfully
           if [ ! -f "doc/${{ env.base_name }}-schematic.pdf" ]; then
