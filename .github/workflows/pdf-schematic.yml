@@ -108,8 +108,8 @@ jobs:
           mkdir -p doc
           
           # Generate the schematic PDF with the project name dynamically inserted
-          kicad-cli sch export pdf --output "doc/${{ env.base_name }}-schematic.pdf" ${{ env.schematic_file }}
-      
+          kicad-cli sch export pdf --output "doc/${{ env.base_name }}-schematic.pdf" ${{ env.root_schematic_file }}
+        
           # Check if the PDF was generated successfully
           if [ ! -f "doc/${{ env.base_name }}-schematic.pdf" ]; then
             echo "Error: schematic PDF was not generated."
