@@ -2,6 +2,16 @@ name: KiCad CI
 
 on:
   workflow_dispatch:
+    inputs:
+      job:
+        description: "Select job to run"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - deploy
+          - blend
   push:
     branches:
       - master
@@ -16,6 +26,7 @@ permissions:
 
 jobs:
   deploy:
+    if: ${{ inputs.job == 'all' || inputs.job == 'deploy' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -35,38 +46,50 @@ jobs:
           echo "schematic_file=$schematic_file" >> $GITHUB_ENV
           echo "pcb_file=$pcb_file" >> $GITHUB_ENV
 
-      - name: Install KiCad V8.0.0
+      # Rest of the deploy steps...
+
+  generate-blend:
+    if: ${{ inputs.job == 'all' || inputs.job == 'blend' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: List Gerber files in fab directory
         run: |
-          sudo add-apt-repository ppa:kicad/kicad-8.0-releases -y
+          echo "Listing Gerber files in the fab directory:"
+          ls -l fab/*.gbr
+
+      - name: Install dependencies (gerbv, inkscape, python3.11, pipx)
+        run: |
           sudo apt update
-          sudo apt install -y kicad
+          sudo apt install -y \
+            gerbv \
+            inkscape \
+            python3.11 \
+            python3.11-venv \
+            python3.11-dev \
+            python3-pip \
+            curl
+            
+          # Install pipx for Python package isolation
+          python3.11 -m pip install --upgrade pip
+          python3.11 -m pip install pipx
+          python3.11 -m pipx ensurepath
 
-      - name: Generate schematic PDF
+      - name: Install gerber2blend
         run: |
-          mkdir -p doc
-          kicad-cli sch export pdf --output "doc/${{ env.base_name }}-schematic.pdf" ${{ env.schematic_file }}
+          # Using pipx to install gerber2blend in an isolated environment
+          python3.11 -m pipx install git+https://github.com/antmicro/gerber2blend.git
 
-      - name: Generate Gerber files
+      - name: Generate .blend file
         run: |
-          mkdir -p fab
-          kicad-cli pcb export gerbers --no-protel-ext -o fab/ "${{ env.pcb_file }}"
-          kicad-cli pcb export drill --format gerber --excellon-separate-th -o fab/ "${{ env.pcb_file }}"
+          # Call gerber2blend without arguments to use the default output folder `fab/`
+          gerber2blend
 
-      - name: Zip Gerber files
-        run: |
-          zip -r "fab/${{ env.base_name }}-gerbers.zip" fab/*.gbr fab/*.drl
-
-      - name: List Generated Files
-        run: |
-          echo "Contents of doc/:"
-          ls -l doc/
-          echo "Contents of fab/:"
-          ls -l fab/
-
-      - name: Upload generated files
+      - name: Upload .blend file
         uses: actions/upload-artifact@v3
         with:
-          name: output-files
-          path: |
-            doc/
-            fab/
+          name: blend-file
+          path: fab/
