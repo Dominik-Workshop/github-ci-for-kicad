@@ -26,8 +26,8 @@ jobs:
           project_file=$(find . -type f -name "*.kicad_pro" | head -n 1)
           if [ -z "$project_file" ]; then exit 1; fi
           base_name=$(basename "$project_file" .kicad_pro)
-          schematic_file="./${base_name}.kicad_sch"
-          pcb_file="./${base_name}.kicad_pcb"
+          schematic_file=$(dirname "$project_file")/${base_name}.kicad_sch
+          pcb_file=$(dirname "$project_file")/${base_name}.kicad_pcb
           if [ ! -f "$schematic_file" ] || [ ! -f "$pcb_file" ]; then exit 1; fi
           echo "base_name=$base_name" >> $GITHUB_ENV
           echo "schematic_file=$schematic_file" >> $GITHUB_ENV
