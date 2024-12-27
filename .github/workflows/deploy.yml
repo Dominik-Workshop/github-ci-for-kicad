@@ -2,31 +2,18 @@ name: KiCad CI
 
 on:
   workflow_dispatch:
-    inputs:
-      job:
-        description: "Select job to run"
-        required: true
-        default: "all"
-        type: choice
-        options:
-          - all
-          - deploy
-          - blend
   push:
     branches:
-      - master
-      - main
+      [master, main]
   pull_request:
     branches:
-      - master
-      - main
+      [master, main]
 
 permissions:
   contents: write
 
 jobs:
   deploy:
-    if: ${{ inputs.job == 'all' || inputs.job == 'deploy' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -46,20 +33,29 @@ jobs:
           echo "schematic_file=$schematic_file" >> $GITHUB_ENV
           echo "pcb_file=$pcb_file" >> $GITHUB_ENV
 
-      # Rest of the deploy steps...
-
-  generate-blend:
-    if: ${{ inputs.job == 'all' || inputs.job == 'blend' }}
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
-
-      - name: List Gerber files in fab directory
+      - name: Install KiCad V8.0.0
         run: |
-          echo "Listing Gerber files in the fab directory:"
-          ls -l fab/*.gbr
+          sudo add-apt-repository ppa:kicad/kicad-8.0-releases -y
+          sudo apt update
+          sudo apt install -y kicad
+
+      - name: Generate schematic PDF
+        run: |
+          mkdir -p doc
+          kicad-cli sch export pdf --output "doc/${{ env.base_name }}-schematic.pdf" ${{ env.schematic_file }}
+
+      - name: Generate Gerber files
+        run: |
+          mkdir -p fab
+          kicad-cli pcb export gerbers --no-protel-ext -o fab/ "${{ env.pcb_file }}"
+          kicad-cli pcb export drill --format gerber --excellon-separate-th -o fab/ "${{ env.pcb_file }}"
+
+      - name: List Generated Files
+        run: |
+          echo "Contents of doc/:" 
+          ls -l doc/
+          echo "Contents of fab/:" 
+          ls -l fab/
 
       - name: Install dependencies (gerbv, inkscape, python3.11, pipx)
         run: |
@@ -72,7 +68,7 @@ jobs:
             python3.11-dev \
             python3-pip \
             curl
-            
+          
           # Install pipx for Python package isolation
           python3.11 -m pip install --upgrade pip
           python3.11 -m pip install pipx
@@ -88,8 +84,19 @@ jobs:
           # Call gerber2blend without arguments to use the default output folder `fab/`
           gerber2blend
 
-      - name: Upload .blend file
+      - name: Regenerate drill file for manufacturing
+        run: |
+          # Regenerate the drill file after generating the blend file
+          kicad-cli pcb export drill -o fab/ "${{ env.pcb_file }}"
+
+      - name: Zip Gerber files
+        run: |
+          zip -r "fab/${{ env.base_name }}-gerbers.zip" fab/*.gbr fab/*.drl
+
+      - name: Upload generated files
         uses: actions/upload-artifact@v3
         with:
-          name: blend-file
-          path: fab/
+          name: output-files
+          path: |
+            doc/
+            fab/
