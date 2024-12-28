@@ -15,6 +15,9 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./pcb/main-pcb/
 
     steps:
       - name: Checkout repository
@@ -29,6 +32,11 @@ jobs:
           schematic_file=$(dirname "$project_file")/${base_name}.kicad_sch
           pcb_file=$(dirname "$project_file")/${base_name}.kicad_pcb
           if [ ! -f "$schematic_file" ] || [ ! -f "$pcb_file" ]; then exit 1; fi
+
+          echo "base_name=$base_name"
+          echo "schematic_file=$schematic_file"
+          echo "pcb_file=$pcb_file"
+
           echo "base_name=$base_name" >> $GITHUB_ENV
           echo "schematic_file=$schematic_file" >> $GITHUB_ENV
           echo "pcb_file=$pcb_file" >> $GITHUB_ENV
@@ -93,10 +101,25 @@ jobs:
         run: |
           zip -r "fab/${{ env.base_name }}-gerbers.zip" fab/*.gbr fab/*.drl
 
-      - name: Upload generated files
-        uses: actions/upload-artifact@v3
-        with:
-          name: output-files
-          path: |
-            doc/
-            fab/
+      - name: Configure Git user
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+      
+      - name: Commit and push the generated PDF and Gerber files
+        run: |
+          # Add the newly generated PDF and Gerber files (including the zip) to Git
+          git add "doc/${{ env.base_name }}-schematic.pdf"
+          git add "fab/*"
+          
+          # Check if there are changes to commit
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          
+          # Commit if the files were added
+          git commit -m "Add generated schematic PDF and Gerber files"
+          
+          # Push the commit
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref }}
