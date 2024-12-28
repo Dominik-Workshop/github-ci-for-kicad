@@ -117,7 +117,7 @@ jobs:
           git add fab/*_Silkscreen.gbr
           git add fab/*_Mask.gbr
           git add fab/*Edge_Cuts.gbr
-          git add fab/*In*.Cu.gbr
+          git add fab/*PTH-drl.gbr
           git add fab/*.drl
 
           # Add the .blend file
