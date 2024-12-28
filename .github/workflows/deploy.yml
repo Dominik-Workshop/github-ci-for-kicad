@@ -60,9 +60,9 @@ jobs:
 
       - name: List Generated Files
         run: |
-          echo "Contents of doc/:" 
+          echo "Contents of doc/:"
           ls -l doc/
-          echo "Contents of fab/:" 
+          echo "Contents of fab/:"
           ls -l fab/
 
       - name: Install dependencies (gerbv, inkscape, python3.11, pipx)
@@ -87,39 +87,50 @@ jobs:
           # Using pipx to install gerber2blend in an isolated environment
           python3.11 -m pipx install git+https://github.com/antmicro/gerber2blend.git
 
-      - name: Generate .blend file
+      - name: Generate .blend file and move to 3d-models
         run: |
-          # Call gerber2blend without arguments to use the default output folder `fab/`
+          # Call gerber2blend to generate the .blend file
           gerber2blend
+          
+          # Move the generated .blend file to the root directory under 3d-models/
+          mkdir -p ../../3d-models
+          mv fab/*.blend ../../3d-models/
 
       - name: Regenerate drill file for manufacturing
         run: |
           # Regenerate the drill file after generating the blend file
           kicad-cli pcb export drill -o fab/ "${{ env.pcb_file }}"
 
-      - name: Zip Gerber files
-        run: |
-          zip -r "fab/${{ env.base_name }}-gerbers.zip" fab/*.gbr fab/*.drl
-
       - name: Configure Git user
         run: |
           git config --global user.email "actions@github.com"
           git config --global user.name "GitHub Actions"
       
-      - name: Commit and push the generated PDF and Gerber files
+      - name: Commit and push the generated files
         run: |
-          # Add the newly generated PDF and Gerber files (including the zip) to Git
+          # Add the schematic PDF
           git add "doc/${{ env.base_name }}-schematic.pdf"
-          git add "fab/*"
+
+          # Add the Gerber files based on patterns
+          git add fab/*_Cu.gbr
+          git add fab/*_Paste.gbr
+          git add fab/*_Silkscreen.gbr
+          git add fab/*_Mask.gbr
+          git add fab/*Edge_Cuts.gbr
+          git add fab/*In*.Cu.gbr
+          git add fab/*.drl
+
+          # Add the .blend file
+          git add ../../3d-models/*.blend
           
           # Check if there are changes to commit
           if git diff --cached --quiet; then
             echo "No changes to commit."
             exit 0
           fi
-          
+
           # Commit if the files were added
-          git commit -m "Add generated schematic PDF and Gerber files"
-          
+          git commit -m "Add generated schematic PDF, necessary Gerber layers, and 3D model"
+
           # Push the commit
           git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref }}
